@@ -1,0 +1,791 @@
+<title>Gaming Multiverse</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A showcase of the games I build, across four universes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Unbounded:wght@500;700;800&display=swap">
+<style>
+/* Layout concept: a fixed 3D stage (starfield plus a ring of four glowing worlds) sits behind a scrolling column of content.
+   Scrolling turns the ring. Pointing at a world card or a drops row swings that world to the front.
+   Deliberately single-theme: a dark, near-black space. */
+:root {
+  --void: #05050b;
+  --deep: #0c0c1a;
+  --ink: #f3f1ff;
+  --mute: #a9a6c6;
+  --line: rgba(255, 255, 255, 0.12);
+  --ember: #ff6b2c;
+  --tide: #1fd8c8;
+  --orchid: #ff5fd0;
+  --volt: #b7ff2f;
+  --font-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --glass: linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
+  color-scheme: dark;
+}
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--ink);
+  font: 400 1rem/1.6 var(--font-body);
+  padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: clip;
+}
+*, *::before, *::after { box-sizing: border-box; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--volt); outline-offset: 3px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Stage (3D canvas, with a pure-CSS fallback underneath) ---------- */
+#stage {
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(60% 50% at 78% 30%, rgba(255, 107, 44, 0.26), transparent 70%),
+    radial-gradient(50% 45% at 18% 78%, rgba(31, 216, 200, 0.2), transparent 70%),
+    radial-gradient(45% 40% at 86% 86%, rgba(255, 95, 208, 0.18), transparent 70%),
+    radial-gradient(40% 35% at 40% 18%, rgba(183, 255, 47, 0.1), transparent 70%),
+    var(--void);
+}
+#stage canvas { display: block; width: 100%; height: 100%; }
+.no-webgl #stage {
+  background:
+    radial-gradient(1.2px 1.2px at 30px 40px, rgba(255, 255, 255, 0.75), transparent),
+    radial-gradient(1px 1px at 120px 90px, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1.5px 1.5px at 70px 150px, rgba(255, 255, 255, 0.65), transparent),
+    radial-gradient(60% 50% at 78% 30%, rgba(255, 107, 44, 0.34), transparent 70%),
+    radial-gradient(50% 45% at 18% 78%, rgba(31, 216, 200, 0.26), transparent 70%),
+    radial-gradient(45% 40% at 86% 86%, rgba(255, 95, 208, 0.24), transparent 70%),
+    radial-gradient(40% 35% at 40% 18%, rgba(183, 255, 47, 0.14), transparent 70%),
+    var(--void);
+  background-size: 160px 180px, 210px 170px, 250px 230px, auto, auto, auto, auto, auto;
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(5, 5, 11, 0.75) 100%),
+    linear-gradient(0deg, rgba(5, 5, 11, 0.55), transparent 45%);
+}
+@media (min-aspect-ratio: 11/10) {
+  #vignette {
+    background:
+      radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(5, 5, 11, 0.75) 100%),
+      linear-gradient(90deg, rgba(5, 5, 11, 0.55), transparent 48%);
+  }
+}
+main, footer { position: relative; z-index: 2; }
+
+/* ---------- Header ---------- */
+.top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, rgba(5, 5, 11, 0.85), rgba(5, 5, 11, 0.4));
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  font: 700 0.82rem/1 var(--font-display); letter-spacing: 0.01em;
+  text-decoration: none; white-space: nowrap;
+}
+.brand-mark {
+  position: relative; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: conic-gradient(var(--ember), var(--orchid), var(--tide), var(--volt), var(--ember));
+}
+.brand-mark::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--void); }
+.top nav { display: flex; align-items: center; gap: clamp(0.9rem, 2.4vw, 2rem); }
+.top nav a { color: var(--mute); text-decoration: none; font-weight: 500; font-size: 0.92rem; transition: color 0.2s; }
+.top nav a:hover { color: var(--ink); }
+.top nav a.btn-small {
+  padding: 0.5rem 1.05rem; border-radius: 999px; background: var(--ink); color: var(--void);
+  font-weight: 700;
+}
+.top nav a.btn-small:hover { background: var(--volt); color: var(--void); }
+@media (max-width: 700px) { .top nav .nav-link { display: none; } }
+
+/* ---------- Shared type and layout ---------- */
+.wrap { width: 100%; max-width: 1180px; margin-inline: auto; }
+.section { padding-block: clamp(4rem, 10vw, 7.5rem); scroll-margin-top: 4.5rem; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  font-size: 0.78rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute);
+}
+.eyebrow::before { content: ""; width: 22px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--ember), var(--orchid)); }
+.h2 {
+  font: 700 clamp(1.65rem, 4.2vw, 2.9rem)/1.1 var(--font-display);
+  letter-spacing: -0.02em; margin: 0.8rem 0 1rem; text-wrap: balance; overflow-wrap: break-word;
+}
+.sub { color: #cfcce6; max-width: 36rem; margin: 0; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.9rem 1.5rem; border-radius: 999px; border: 1px solid transparent;
+  font: 700 1rem/1.2 var(--font-body); text-decoration: none; cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.25s, background 0.2s;
+}
+.btn.primary { background: var(--volt); color: var(--void); }
+.btn.primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px -10px rgba(183, 255, 47, 0.6); }
+.btn.ghost { border-color: var(--line); background: rgba(255, 255, 255, 0.05); color: var(--ink); }
+.btn.ghost:hover { background: rgba(255, 255, 255, 0.11); }
+
+/* ---------- Hero ---------- */
+.hero { padding-top: clamp(7.5rem, 21vh, 11.5rem); padding-bottom: clamp(4.5rem, 13vh, 8rem); }
+@media (max-aspect-ratio: 11/10) { .hero { padding-top: max(46vh, 13rem); } }
+.hero .wrap > * { max-width: 46rem; animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.hero .wrap > :nth-child(2) { animation-delay: 0.08s; }
+.hero .wrap > :nth-child(3) { animation-delay: 0.16s; }
+.hero .wrap > :nth-child(4) { animation-delay: 0.24s; }
+.hero .wrap > :nth-child(5) { animation-delay: 0.32s; }
+@keyframes rise { from { transform: translateY(18px); } to { transform: none; } }
+.kicker {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  padding: 0.4rem 0.9rem; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05); font-size: 0.82rem; font-weight: 600; color: #d8d5ee;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.kicker i { width: 8px; height: 8px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 10px var(--volt); }
+h1 {
+  font: 700 clamp(1.9rem, 5.4vw, 4.5rem)/1.04 var(--font-display);
+  letter-spacing: -0.03em; margin: 1.1rem 0 1.2rem; text-wrap: balance;
+}
+.cycle { color: var(--orchid); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .cycle {
+    background: linear-gradient(90deg, var(--ember), var(--orchid), var(--tide), var(--volt), var(--ember));
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: cycle 7s linear infinite;
+  }
+}
+@keyframes cycle { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+.lede { font-size: clamp(1.02rem, 1.6vw, 1.2rem); color: #cfcce6; max-width: 36rem; margin: 0; }
+.cta-row { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 1.8rem; }
+.hint { margin: 2rem 0 0; color: var(--mute); font-size: 0.88rem; }
+
+/* ---------- Worlds ---------- */
+.worlds-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem;
+  margin-top: 2.2rem; perspective: 1200px;
+}
+@media (min-width: 1100px) and (min-aspect-ratio: 11/10) { .worlds-grid { max-width: 800px; } }
+@media (max-width: 700px) { .worlds-grid { grid-template-columns: minmax(0, 1fr); } }
+.world {
+  --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%;
+  position: relative; isolation: isolate; overflow: hidden; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 1.4rem; border-radius: 22px;
+  background: var(--glass); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.18s ease-out, border-color 0.3s, box-shadow 0.3s;
+}
+.world::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(300px circle at var(--mx) var(--my), rgba(var(--c-rgb), 0.34), transparent 65%);
+}
+.world:hover, .world.is-active {
+  border-color: rgba(var(--c-rgb), 0.6);
+  box-shadow: 0 24px 70px -30px rgba(var(--c-rgb), 0.75), inset 0 0 0 1px rgba(var(--c-rgb), 0.12);
+}
+.world:hover::before, .world.is-active::before { opacity: 1; }
+.w-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.glyph { width: 46px; height: 46px; flex: none; color: var(--c); filter: drop-shadow(0 0 10px rgba(var(--c-rgb), 0.65)); }
+.tag {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--c);
+  border: 1px solid rgba(var(--c-rgb), 0.45); padding: 0.25rem 0.65rem; border-radius: 999px;
+}
+.world h3 { font: 700 1.35rem/1.15 var(--font-display); letter-spacing: -0.01em; margin: 0.5rem 0 0; }
+.genre { margin: 0; color: var(--c); font-weight: 600; font-size: 0.92rem; }
+.desc { margin: 0.15rem 0 0; color: var(--mute); }
+.facts { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 0; padding: 0; }
+.facts li { font-size: 0.8rem; padding: 0.25rem 0.7rem; border-radius: 999px; background: rgba(255, 255, 255, 0.07); }
+.enter { margin-top: auto; padding-top: 1rem; display: inline-flex; align-self: flex-start; gap: 0.4rem; font-weight: 700; text-decoration: none; }
+.enter span { transition: transform 0.2s; }
+.world:hover .enter span, .world.is-active .enter span { transform: translateX(5px); }
+
+/* ---------- How it works ---------- */
+.panel {
+  padding: clamp(1.4rem, 3.4vw, 2.6rem); border-radius: 28px; border: 1px solid var(--line);
+  background: rgba(8, 8, 18, 0.58); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.6rem); }
+.step { min-width: 0; border-top: 1px solid var(--line); padding-top: 1.3rem; }
+.step .n {
+  display: block; margin-bottom: 0.9rem; font: 800 3.4rem/1 var(--font-display);
+  color: transparent; -webkit-text-stroke: 1.5px var(--c);
+}
+.step h3 { font: 700 1.2rem/1.25 var(--font-display); letter-spacing: -0.01em; margin: 0 0 0.5rem; }
+.step p { margin: 0; color: var(--mute); }
+@media (max-width: 760px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- New drops ---------- */
+.drops {
+  list-style: none; margin: 2rem 0 0; padding: 0; overflow: hidden; border-radius: 22px; border: 1px solid var(--line);
+  background: rgba(8, 8, 18, 0.62); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.drop {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 7.5rem 5.5rem; align-items: center; gap: 1rem;
+  padding: 1.05rem 1.4rem; border-top: 1px solid var(--line); transition: background 0.25s;
+}
+.drop:first-child { border-top: 0; }
+.drop:hover, .drop.is-active { background: rgba(var(--c-rgb), 0.1); }
+.drop .name { display: flex; align-items: center; gap: 0.7rem; min-width: 0; font: 700 1rem/1.25 var(--font-display); }
+.drop .name span { min-width: 0; overflow-wrap: break-word; }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 12px var(--c); }
+.drop .name a { text-decoration: none; }
+.drop .name a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.drop .meta { color: var(--mute); font-size: 0.92rem; }
+.drop .when { color: var(--mute); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.pill {
+  justify-self: end; display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0.75rem; border-radius: 999px; border: 1px solid;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.pill.live { color: var(--volt); border-color: rgba(183, 255, 47, 0.5); background: rgba(183, 255, 47, 0.1); }
+.pill.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
+.pill.beta { color: var(--ember); border-color: rgba(255, 107, 44, 0.5); background: rgba(255, 107, 44, 0.1); }
+.pill.soon { color: var(--mute); border-color: var(--line); background: rgba(255, 255, 255, 0.04); }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(183, 255, 47, 0.6); }
+  60% { box-shadow: 0 0 0 6px rgba(183, 255, 47, 0); }
+}
+@media (max-width: 760px) {
+  .drop { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pill" "meta when"; row-gap: 0.45rem; padding: 1rem; }
+  .drop .name { grid-area: name; }
+  .drop .pill { grid-area: pill; }
+  .drop .meta { grid-area: meta; }
+  .drop .when { grid-area: when; justify-self: end; }
+}
+
+/* ---------- Join ---------- */
+.join {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: clamp(1.6rem, 4vw, 3.5rem);
+  padding: clamp(1.8rem, 6vw, 4.2rem); border-radius: 32px; border: 1px solid var(--line);
+  background:
+    radial-gradient(60% 90% at 8% 0%, rgba(255, 107, 44, 0.24), transparent 60%),
+    radial-gradient(60% 90% at 92% 100%, rgba(31, 216, 200, 0.22), transparent 60%),
+    radial-gradient(50% 70% at 62% 8%, rgba(255, 95, 208, 0.18), transparent 60%),
+    rgba(8, 8, 18, 0.72);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+@media (max-width: 860px) { .join { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Footer and HUD ---------- */
+footer { padding-block: 1.5rem 5.5rem; }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem 2rem; border-top: 1px solid var(--line); padding-top: 1.6rem; color: var(--mute); font-size: 0.9rem; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; }
+.foot a { text-decoration: none; }
+.foot a:hover { color: var(--ink); }
+.hud {
+  position: fixed; z-index: 15; pointer-events: none;
+  left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.95rem; border-radius: 999px;
+  background: rgba(8, 8, 18, 0.62); border: 1px solid var(--line); color: var(--mute); font-size: 0.8rem;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.hud strong { color: var(--ink); font: 700 0.78rem/1 var(--font-display); }
+.hud-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--hc, var(--ember)); box-shadow: 0 0 12px var(--hc, var(--ember)); transition: background 0.4s, box-shadow 0.4s; }
+.no-webgl .hud { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+}
+</style>
+
+<div id="stage" aria-hidden="true"></div>
+<div id="vignette" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>Gaming Multiverse</a>
+  <nav aria-label="Primary">
+    <a class="nav-link" href="#worlds">Worlds</a>
+    <a class="nav-link" href="#how">How it's made</a>
+    <a class="btn-small" href="#games">My games</a>
+  </nav>
+</header>
+
+<div class="hud" aria-hidden="true"><span class="hud-dot" id="hudDot"></span><span>Facing</span><strong id="hudName">Emberfall</strong></div>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <p class="kicker"><i aria-hidden="true"></i>Four games, four universes</p>
+      <h1>Step into the <span class="cycle">Multiverse</span> of play</h1>
+      <p class="lede">Gaming Multiverse is the home for every game I make. Four universes, each with its own look, its own rules and its own colour. Step in and take a look around.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#worlds">Explore the worlds</a>
+        <a class="btn ghost" href="#games">See my games</a>
+      </div>
+      <p class="hint">Scroll to turn the ring. Point at a world card to pull that universe to the front.</p>
+    </div>
+  </section>
+
+  <section class="section" id="worlds" aria-labelledby="worlds-title">
+    <div class="wrap">
+      <span class="eyebrow">Worlds</span>
+      <h2 class="h2" id="worlds-title">Four worlds to explore</h2>
+      <p class="sub">Every universe has its own rules and its own colour. Hover a card and watch its world swing into view.</p>
+
+      <div class="worlds-grid" id="worldsGrid"></div>
+    </div>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <span class="eyebrow">How it's made</span>
+      <h2 class="h2" id="how-title">Three steps from idea to launch</h2>
+      <div class="panel" style="margin-top:2rem">
+        <ol class="steps">
+          <li class="step" style="--c:#ff6b2c">
+            <span class="n" aria-hidden="true">1</span>
+            <h3>Dream up a world</h3>
+            <p>Every game starts as a mood, a colour and one strong rule. The world comes first and the code follows.</p>
+          </li>
+          <li class="step" style="--c:#1fd8c8">
+            <span class="n" aria-hidden="true">2</span>
+            <h3>Build and playtest</h3>
+            <p>A small playable version comes together fast, then gets played again and again until the rough edges show.</p>
+          </li>
+          <li class="step" style="--c:#ff5fd0">
+            <span class="n" aria-hidden="true">3</span>
+            <h3>Ship and keep growing</h3>
+            <p>Finished games go live here, and new ones join the ring as soon as they are ready.</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="games" aria-labelledby="games-title">
+    <div class="wrap">
+      <span class="eyebrow">My games</span>
+      <h2 class="h2" id="games-title">Every game, every world</h2>
+      <p class="sub">Point at a row to pull its world forward.</p>
+      <ul class="drops" id="dropsList"></ul>
+    </div>
+  </section>
+
+  <section class="section" id="more" aria-labelledby="more-title">
+    <div class="wrap">
+      <div class="join">
+        <div>
+          <span class="eyebrow">What's next</span>
+          <h2 class="h2" id="more-title">More worlds are on the way</h2>
+          <p class="sub">New games land here first. Check back soon, or head back to the worlds and take another lap.</p>
+        </div>
+        <div class="cta-row">
+          <a class="btn primary" href="#worlds">Back to the worlds</a>
+          <a class="btn ghost" id="contactLink" href="#" hidden></a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <span>&copy; 2026 Gaming Multiverse</span>
+      <nav aria-label="Footer">
+        <a href="#worlds">Worlds</a>
+        <a href="#how">How it's made</a>
+        <a href="#games">My games</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var TAU = Math.PI * 2;
+  var root = document.documentElement;
+  var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+  /* =====================================================================
+     EDIT YOUR GAMES HERE
+     This is the only part of the file you need to change.
+     world: 0 = orange, 1 = teal, 2 = pink, 3 = lime (each colour is one of the four 3D worlds)
+     status: 'live', 'beta' or 'soon'
+     url (optional): where the game opens, for example 'games/my-game.html' or 'https://...'
+     ===================================================================== */
+  var GAMES = [
+    { title: 'Rage Breaker',    world: 0, genre: 'Smash and escape action', when: 'Play now',        status: 'live', url: 'games/rage-breaker.html' },
+    { title: 'Prism Path',      world: 1, genre: 'Light-bending puzzle',    when: 'Play now',        status: 'live', url: 'games/prism-path.html' },
+    { title: 'Aurora Drift',    world: 2, genre: 'Sky pilot flying game',   when: 'Play now',        status: 'live', url: 'games/aurora-drift.html' },
+    { title: 'City of Shadows', world: 3, genre: 'Open-world crime sim',    when: 'Best on desktop', status: 'live', url: 'games/city-of-shadows.html' }
+  ];
+  /* Optional: a button at the bottom of the page. Use a full https:// link (itch.io, YouTube, Instagram...). Leave url empty to hide it. */
+  var CONTACT = { label: 'Find me online', url: '' };
+  /* The four world cards, one per colour above. Keep exactly four. */
+  var WORLDS = [
+    { name: 'Rage Breaker', hex: '#ff6b2c', tag: 'Action', genre: 'Smash, survive, escape', desc: 'Smash blocks, survive the wave and escape through the portal. Pick a hero, clear levels and race a friend.', facts: ['Levels and heroes', 'Race a friend'] },
+    { name: 'Prism Path', hex: '#1fd8c8', tag: 'Puzzle', genre: 'Bend the light', desc: 'Tap the mirrors to steer a beam of light into the goal. Fewer taps earn more stars, and the puzzles keep growing.', facts: ['Endless puzzles', 'Star ratings'] },
+    { name: 'Aurora Drift', hex: '#ff5fd0', tag: 'Flight', genre: 'Sky Pilot', desc: 'Fly through the aurora, collect coins and unlock new planes in the hangar. Tune them up in the garage.', facts: ['Unlock planes', 'Boost and skills'] },
+    { name: 'City of Shadows', hex: '#b7ff2f', tag: 'Open world', genre: 'Crime sim', desc: 'Explore Vale Street District on foot or behind the wheel. The city remembers what you do, so watch the heat.', facts: ['Drive and explore', 'Day, night and weather'] }
+  ];
+  /* ===================== end of editable block ===================== */
+  WORLDS.forEach(function (w) { w.color = parseInt(w.hex.slice(1), 16); });
+  var state = { hover: -1, progress: 0, mx: 0, my: 0 };
+  var activeEl = null, touchTimer = 0, canvasEl = null;
+
+  /* ---------- Build the world cards and the drops list from the data above ---------- */
+  var GLYPHS = [
+    '<svg class="glyph" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><polygon points="32,5 56,18.5 56,45.5 32,59 8,45.5 8,18.5"/><polygon points="32,5 56,45.5 8,45.5" opacity=".7"/><polygon points="8,18.5 56,18.5 32,59" opacity=".5"/></svg>',
+    '<svg class="glyph" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><polygon points="32,5 58,32 32,59 6,32"/><polyline points="6,32 32,22 58,32 32,42 6,32" opacity=".7"/><line x1="32" y1="5" x2="32" y2="59" opacity=".5"/></svg>',
+    '<svg class="glyph" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="32" cy="32" rx="26" ry="11"/><ellipse cx="32" cy="32" rx="26" ry="11" transform="rotate(60 32 32)" opacity=".75"/><ellipse cx="32" cy="32" rx="26" ry="11" transform="rotate(120 32 32)" opacity=".55"/></svg>',
+    '<svg class="glyph" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><polygon points="32,5 58,24 48,56 16,56 6,24"/><polygon points="32,19 46,29 41,45 23,45 18,29" opacity=".75"/><path d="M32 5V19M58 24L46 29M48 56L41 45M16 56L23 45M6 24L18 29" opacity=".55"/></svg>'
+  ];
+  var STATUS = { live: 'Live', beta: 'Beta', soon: 'Soon' };
+  function isLink(u) { return /^(https?:\/\/|games\/)/.test(u || ''); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function cvars(i) {
+    var n = parseInt(WORLDS[i].hex.slice(1), 16);
+    return '--c:' + WORLDS[i].hex + ';--c-rgb:' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
+  }
+  document.getElementById('worldsGrid').innerHTML = WORLDS.map(function (w, i) {
+    return '<article class="world" data-world="' + i + '" style="' + cvars(i) + '">' +
+      '<div class="w-head">' + GLYPHS[i] + '<span class="tag">' + esc(w.tag) + '</span></div>' +
+      '<h3>' + esc(w.name) + '</h3><p class="genre">' + esc(w.genre) + '</p><p class="desc">' + esc(w.desc) + '</p>' +
+      '<ul class="facts">' + w.facts.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>' +
+      (function () {
+        var g = GAMES.filter(function (x) { return +x.world === i; })[0];
+        return g && isLink(g.url)
+          ? '<a class="enter" href="' + esc(g.url) + '">Play ' + esc(g.title) + ' <span aria-hidden="true">&rarr;</span></a>'
+          : '<a class="enter" href="#games">See the games <span aria-hidden="true">&rarr;</span></a>';
+      })() + '</article>';
+  }).join('');
+  document.getElementById('dropsList').innerHTML = GAMES.map(function (g) {
+    var i = Math.max(0, Math.min(3, +g.world || 0));
+    var st = STATUS[g.status] ? g.status : 'soon';
+    return '<li class="drop" data-world="' + i + '" style="' + cvars(i) + '">' +
+      '<span class="name"><i class="dot" aria-hidden="true"></i><span>' + (isLink(g.url) ? '<a href="' + esc(g.url) + '">' + esc(g.title) + '</a>' : esc(g.title)) + '</span></span>' +
+      '<span class="meta">' + esc(g.genre) + '</span><span class="when">' + esc(g.when) + '</span>' +
+      '<span class="pill ' + st + '">' + STATUS[st] + '</span></li>';
+  }).join('');
+
+  var contactLink = document.getElementById('contactLink');
+  if (/^https?:\/\//.test(CONTACT.url || '')) {
+    contactLink.href = CONTACT.url;
+    contactLink.textContent = CONTACT.label || 'Find me online';
+    contactLink.hidden = false;
+  }
+
+  /* ---------- Hover link between page elements and the 3D ring ---------- */
+  function setHover(i, el) {
+    if (activeEl && activeEl !== el) activeEl.classList.remove('is-active');
+    activeEl = el;
+    el.classList.add('is-active');
+    state.hover = i;
+  }
+  function clearHover(el) {
+    if (activeEl === el) {
+      el.classList.remove('is-active');
+      activeEl = null;
+      state.hover = -1;
+    }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-world]'), function (el) {
+    var i = +el.getAttribute('data-world');
+    el.addEventListener('pointerenter', function () { clearTimeout(touchTimer); setHover(i, el); });
+    el.addEventListener('pointerleave', function (e) {
+      if (e.pointerType === 'touch') {
+        clearTimeout(touchTimer);
+        touchTimer = setTimeout(function () { clearHover(el); }, 2400);
+      } else { clearHover(el); }
+    });
+    el.addEventListener('focusin', function () { setHover(i, el); });
+    el.addEventListener('focusout', function () { clearHover(el); });
+  });
+
+  /* ---------- Tilting glass cards with a pointer-following glow ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.world'), function (card) {
+    card.addEventListener('pointermove', function (e) {
+      var r = card.getBoundingClientRect();
+      var px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+      card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+      card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+      if (e.pointerType !== 'touch' && !reduceMQ.matches) {
+        card.style.setProperty('--ry', ((px - 0.5) * 10).toFixed(2) + 'deg');
+        card.style.setProperty('--rx', ((0.5 - py) * 10).toFixed(2) + 'deg');
+      }
+    });
+    card.addEventListener('pointerleave', function () {
+      card.style.setProperty('--rx', '0deg');
+      card.style.setProperty('--ry', '0deg');
+      card.style.setProperty('--mx', '50%');
+      card.style.setProperty('--my', '50%');
+    });
+  });
+
+  /* ---------- Scroll progress and pointer ---------- */
+  function onScroll() {
+    var y = window.pageYOffset || root.scrollTop || document.body.scrollTop || 0;
+    var max = Math.max(1, root.scrollHeight - window.innerHeight);
+    state.progress = Math.min(1, Math.max(0, y / max));
+    if (canvasEl) canvasEl.style.opacity = (1 - 0.25 * Math.min(1, y / (window.innerHeight * 0.9))).toFixed(3);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('pointermove', function (e) {
+    if (e.pointerType === 'touch') return;
+    state.mx = (e.clientX / window.innerWidth - 0.5) * 2;
+    state.my = (e.clientY / window.innerHeight - 0.5) * 2;
+  }, { passive: true });
+
+  /* ---------- The 3D stage ---------- */
+  function initScene() {
+    var THREE = window.THREE;
+    if (!THREE) return false;
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    } catch (err) { return false; }
+    if (!renderer || !renderer.getContext()) return false;
+
+    var stage = document.getElementById('stage');
+    canvasEl = renderer.domElement;
+    canvasEl.setAttribute('aria-hidden', 'true');
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setClearColor(0x05050b, 1);
+    stage.appendChild(canvasEl);
+
+    var lost = false;
+    canvasEl.addEventListener('webglcontextlost', function (e) {
+      e.preventDefault();
+      lost = true;
+      canvasEl.style.display = 'none';
+      root.classList.add('no-webgl');
+    });
+
+    var scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x05050b, 0.024);
+    var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
+    camera.position.set(0, 0.7, 11.5);
+
+    scene.add(new THREE.AmbientLight(0x4a4a78, 0.7));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.55);
+    sun.position.set(3, 5, 6);
+    scene.add(sun);
+
+    function radialTex(stops) {
+      var c = document.createElement('canvas');
+      c.width = c.height = 128;
+      var x = c.getContext('2d');
+      var g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+      stops.forEach(function (s) { g.addColorStop(s[0], s[1]); });
+      x.fillStyle = g;
+      x.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    }
+    var glowTex = radialTex([[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,255,255,0.45)'], [0.6, 'rgba(255,255,255,0.08)'], [1, 'rgba(255,255,255,0)']]);
+    var dotTex = radialTex([[0, 'rgba(255,255,255,1)'], [0.4, 'rgba(255,255,255,0.8)'], [1, 'rgba(255,255,255,0)']]);
+
+    function glowSprite(color, size, opacity) {
+      var s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowTex, color: color, transparent: true, opacity: opacity,
+        blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+      }));
+      s.scale.set(size, size, 1);
+      return s;
+    }
+
+    /* Starfield: two layers plus faint far nebula glows */
+    function makeStars(count, rMin, rMax, size, opacity) {
+      var pos = new Float32Array(count * 3), col = new Float32Array(count * 3);
+      var palette = [new THREE.Color(0xffffff), new THREE.Color(0xbcd4ff), new THREE.Color(0xffd9bf), new THREE.Color(0xe7c6ff)];
+      for (var i = 0; i < count; i++) {
+        var u = Math.random() * 2 - 1, th = Math.random() * TAU, r = rMin + Math.random() * (rMax - rMin), s = Math.sqrt(1 - u * u);
+        pos[i * 3] = r * s * Math.cos(th);
+        pos[i * 3 + 1] = r * u;
+        pos[i * 3 + 2] = r * s * Math.sin(th);
+        var c = palette[(Math.random() * palette.length) | 0], b = 0.45 + Math.random() * 0.55;
+        col[i * 3] = c.r * b; col[i * 3 + 1] = c.g * b; col[i * 3 + 2] = c.b * b;
+      }
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return new THREE.Points(geo, new THREE.PointsMaterial({
+        size: size, map: dotTex, vertexColors: true, transparent: true, opacity: opacity,
+        depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false
+      }));
+    }
+    var small = window.innerWidth < 700;
+    var starsFar = makeStars(small ? 1400 : 2600, 60, 150, 1.0, 0.95);
+    var starsNear = makeStars(small ? 220 : 420, 16, 48, 0.42, 0.9);
+    scene.add(starsFar, starsNear);
+    [[0xff6b2c, -38, 12, -70, 0.1], [0x1fd8c8, 40, -14, -80, 0.09], [0xff5fd0, -10, -30, -90, 0.08], [0x6a4cff, 22, 28, -85, 0.09]].forEach(function (n) {
+      var s = glowSprite(n[0], 80, n[4]);
+      s.position.set(n[1], n[2], n[3]);
+      scene.add(s);
+    });
+
+    /* The ring of worlds */
+    var R = 3.6;
+    var ring = new THREE.Group();
+    ring.rotation.x = 0.16;
+    scene.add(ring);
+    var pts = [];
+    for (var p = 0; p <= 128; p++) {
+      var a0 = (p / 128) * TAU;
+      pts.push(new THREE.Vector3(Math.sin(a0) * R, 0, Math.cos(a0) * R));
+    }
+    ring.add(new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x8f8cc0, transparent: true, opacity: 0.22 })
+    ));
+
+    var DEFS = [
+      { geo: function () { return new THREE.IcosahedronGeometry(1.0, 0); }, shell: function () { return new THREE.IcosahedronGeometry(1.0, 1); }, shellScale: 1.3 },
+      { geo: function () { return new THREE.OctahedronGeometry(1.2, 0); }, shell: function () { return new THREE.OctahedronGeometry(1.2, 1); }, shellScale: 1.25 },
+      { geo: function () { return new THREE.TorusKnotGeometry(0.7, 0.22, 160, 20, 2, 3); }, shell: function () { return new THREE.TorusKnotGeometry(0.7, 0.22, 70, 8, 2, 3); }, shellScale: 1.16 },
+      { geo: function () { return new THREE.DodecahedronGeometry(1.05, 0); }, shell: function () { return new THREE.DodecahedronGeometry(1.05, 1); }, shellScale: 1.3 }
+    ];
+
+    var worlds = WORLDS.map(function (wd, i) {
+      var col = new THREE.Color(wd.color);
+      var def = DEFS[i];
+      var g = new THREE.Group();
+      var a = i * Math.PI / 2;
+      g.position.set(Math.sin(a) * R, 0, Math.cos(a) * R);
+      var body = new THREE.Group();
+      g.add(body);
+
+      var core = new THREE.Mesh(def.geo(), new THREE.MeshStandardMaterial({
+        color: col.clone().multiplyScalar(0.55), emissive: col, emissiveIntensity: 0.5,
+        roughness: 0.35, metalness: 0.3, flatShading: true
+      }));
+      var shell = new THREE.Mesh(def.shell(), new THREE.MeshBasicMaterial({ color: col, wireframe: true, transparent: true, opacity: 0.34 }));
+      shell.scale.setScalar(def.shellScale);
+      core.rotation.set(0.4 + i * 0.5, 0.3 + i * 0.8, 0);
+      body.add(core, shell);
+
+      var glow = glowSprite(col, 5.2, 0.62);
+      g.add(glow);
+
+      var light = new THREE.PointLight(col, 1.3, 8);
+      light.position.set(0.8, 0.8, 2.2);
+      g.add(light);
+
+      var moons = [];
+      for (var k = 0; k < 3; k++) {
+        var r = 1.9 + k * 0.55 + i * 0.03;
+        var tilt = new THREE.Group();
+        tilt.rotation.set(0.6 + k * 1.0 + i * 0.4, k * 0.9 - i * 0.5, 0);
+        body.add(tilt);
+        var spin = new THREE.Group();
+        spin.rotation.z = k * 2.1 + i;
+        tilt.add(spin);
+        var moon = new THREE.Mesh(new THREE.SphereGeometry(0.15 - k * 0.03, 20, 20), new THREE.MeshStandardMaterial({
+          color: 0xffffff, emissive: col, emissiveIntensity: 0.8, roughness: 0.5
+        }));
+        moon.position.x = r;
+        moon.add(glowSprite(col, 0.8, 0.7));
+        spin.add(moon);
+        tilt.add(new THREE.Mesh(new THREE.RingGeometry(r - 0.006, r + 0.006, 96), new THREE.MeshBasicMaterial({
+          color: col, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false
+        })));
+        moons.push({ spin: spin, speed: (k % 2 ? -1 : 1) * (0.9 - k * 0.2 + i * 0.05) });
+      }
+      ring.add(g);
+      return { g: g, body: body, core: core, shell: shell, glow: glow, moons: moons, s: 1, rot: [0.8 + i * 0.15, 1 - i * 0.1] };
+    });
+
+    /* Layout: ring sits to the right on wide screens and above the text on tall ones */
+    function layout() {
+      var w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      var aspect = w / h;
+      var visH = 2 * camera.position.z * Math.tan(camera.fov * Math.PI / 360);
+      var visW = visH * aspect;
+      if (aspect < 1.1) {
+        ring.scale.setScalar(Math.max(0.5, Math.min(0.95, aspect * 0.95)));
+        ring.position.set(0, visH * 0.23, 0);
+      } else {
+        ring.scale.setScalar(Math.min(1, 0.55 + aspect * 0.25));
+        ring.position.set(visW * 0.22, 0.1, 0);
+      }
+    }
+    layout();
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', layout);
+
+    var hudName = document.getElementById('hudName');
+    var hudDot = document.getElementById('hudDot');
+    var clock = new THREE.Clock();
+    var ringRot = 0, lastIdx = -1, camX = 0, camY = 0.7;
+
+    function frame() {
+      if (lost) return;
+      requestAnimationFrame(frame);
+      var dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+      var rm = reduceMQ.matches;
+
+      /* Ring angle: scroll sets it, hovering a world overrides it. Reduced motion snaps to quarter turns. */
+      var target;
+      if (state.hover >= 0) target = -state.hover * Math.PI / 2;
+      else target = rm ? -Math.round(state.progress * 4) * Math.PI / 2 : -state.progress * TAU;
+      target += Math.round((ringRot - target) / TAU) * TAU;
+      var kr = rm ? 1 : 1 - Math.exp(-dt * (state.hover >= 0 ? 4.2 : 5.5));
+      ringRot += (target - ringRot) * kr;
+      ring.rotation.y = ringRot + (rm ? 0 : Math.sin(t * 0.25) * 0.04);
+
+      /* Mouse parallax */
+      var px = rm ? 0 : state.mx, py = rm ? 0 : state.my;
+      var kc = 1 - Math.exp(-dt * 3);
+      camX += (px * 0.9 - camX) * kc;
+      camY += (0.7 - py * 0.5 - camY) * kc;
+      camera.position.x = camX;
+      camera.position.y = camY;
+      camera.lookAt(0, 0, 0);
+
+      starsFar.rotation.y = rm ? 0 : t * 0.004 + state.progress * 0.6;
+      starsFar.rotation.x = rm ? 0 : state.progress * 0.25;
+      starsNear.rotation.y = rm ? 0 : t * 0.007 + state.progress * 1.1 + px * 0.03;
+      starsNear.rotation.x = rm ? 0 : py * 0.02;
+
+      var ks = rm ? 1 : 1 - Math.exp(-dt * 6);
+      var sp = rm ? 0 : 1;
+      for (var i = 0; i < worlds.length; i++) {
+        var w = worlds[i];
+        w.s += ((state.hover === i ? 1.5 : 1) - w.s) * ks;
+        w.g.scale.setScalar(w.s);
+        w.glow.material.opacity = 0.62 + (w.s - 1) * 0.5;
+        w.core.material.emissiveIntensity = 0.5 + (w.s - 1) * 0.8;
+        w.core.rotation.x += dt * 0.25 * sp * w.rot[0];
+        w.core.rotation.y += dt * 0.35 * sp * w.rot[1];
+        w.shell.rotation.x -= dt * 0.12 * sp * w.rot[1];
+        w.shell.rotation.y -= dt * 0.18 * sp * w.rot[0];
+        w.body.position.y = rm ? 0 : Math.sin(t * 0.9 + i * 1.7) * 0.12;
+        for (var m = 0; m < w.moons.length; m++) w.moons[m].spin.rotation.z += dt * w.moons[m].speed * sp;
+      }
+
+      var idx = ((Math.round(-ringRot / (Math.PI / 2)) % 4) + 4) % 4;
+      if (idx !== lastIdx) {
+        lastIdx = idx;
+        hudName.textContent = WORLDS[idx].name;
+        hudDot.style.setProperty('--hc', WORLDS[idx].hex);
+      }
+
+      renderer.render(scene, camera);
+    }
+    frame();
+    return true;
+  }
+
+  var ok = false;
+  try { ok = initScene(); } catch (err) { ok = false; }
+  if (!ok) root.classList.add('no-webgl');
+  onScroll();
+})();
+</script>
